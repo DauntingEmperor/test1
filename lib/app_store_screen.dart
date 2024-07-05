@@ -25,15 +25,19 @@ class _AppStoreScreenState extends State<AppStoreScreen> {
   Future<List<AppInfo>> fetchApps(List<String> repositories) async {
     List<AppInfo> apps = [];
     for (var repoUrl in repositories) {
-      final response = await http.get(Uri.parse(repoUrl));
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
-        Repository repo = Repository.fromJson(jsonResponse);
-        if (repo.apps != null) {
-          apps.addAll(repo.apps!);
+      try {
+        final response = await http.get(Uri.parse(repoUrl));
+        if (response.statusCode == 200) {
+          final jsonResponse = json.decode(response.body);
+          Repository repo = Repository.fromJson(jsonResponse);
+          if (repo.apps != null) {
+            apps.addAll(repo.apps!);
+          }
+        } else {
+          print('Failed to load repository from $repoUrl: ${response.statusCode}');
         }
-      } else {
-        print('Failed to load repository from $repoUrl');
+      } catch (e) {
+        print('Error loading repository from $repoUrl: $e');
       }
     }
     return apps;
@@ -51,8 +55,8 @@ class _AppStoreScreenState extends State<AppStoreScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(child: Text("${snapshot.error}"));
-          } else if (snapshot.hasData && snapshot.data != null) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          } else if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
             return ListView.builder(
               itemCount: snapshot.data!.length,
               itemBuilder: (context, index) {
@@ -61,7 +65,10 @@ class _AppStoreScreenState extends State<AppStoreScreen> {
                   leading: Image.network('https://example.com/icons/${app.icon}'),
                   title: Text(app.name),
                   subtitle: Text(app.author),
-                  trailing: Text(app.version),
+                  trailing: Container(
+                    width: 80, // Adjust width as needed
+                    child: Text(app.version),
+                  ),
                   onTap: () {
                     // Handle app installation
                   },

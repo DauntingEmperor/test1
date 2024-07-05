@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'models/app_info.dart';
 import 'settings_screen.dart';
 import 'app_store_screen.dart';
-import 'models/app_info.dart';
+import 'browser_screen.dart';
 
 class HomeScreen extends StatefulWidget {
+  List<String> repositories;
+
+  HomeScreen({required this.repositories});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
@@ -12,13 +17,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   List<AppInfo> installedApps = [
     AppInfo(name: "Settings", author: "", version: "", icon: "assets/icons/settings.png"),
     AppInfo(name: "App Store", author: "", version: "", icon: "assets/icons/app_store.png"),
+    AppInfo(name: "Chrome", author: "", version: "", icon: "assets/icons/chrome.png"),
   ];
-
-  List<String> repositories = [];
 
   bool isControlCenterOpen = false;
   late AnimationController _controller;
   late Animation<double> _animation;
+
+  double _brightnessLevel = 0.5;
+  double _volumeLevel = 0.7;
 
   @override
   void initState() {
@@ -47,6 +54,108 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     });
   }
 
+  Future<void> _handlePasteDartCode(String dartCode) async {
+    try {
+      // Extracting name and icon URL from Dart code
+      String appName = '';
+      String appIconUrl = '';
+
+      // Extracting app name
+      RegExp nameRegex = RegExp(r'class\s+(\w+)\s+extends');
+      Match? nameMatch = nameRegex.firstMatch(dartCode);
+      if (nameMatch != null && nameMatch.groupCount >= 1) {
+        appName = nameMatch.group(1)!;
+      } else {
+        throw FormatException('Failed to extract app name');
+      }
+
+      // Extracting icon URL
+      RegExp iconRegex = RegExp(r"icon:\s*'(.*)'");
+      Match? iconMatch = iconRegex.firstMatch(dartCode);
+      if (iconMatch != null && iconMatch.groupCount >= 1) {
+        appIconUrl = iconMatch.group(1)!;
+      } else {
+        throw FormatException('Failed to extract app icon URL');
+      }
+
+      AppInfo newApp = AppInfo(
+        name: appName,
+        author: 'Anonymous',
+        version: '1.0',
+        icon: appIconUrl,
+      );
+
+      setState(() {
+        installedApps.add(newApp);
+      });
+
+    } catch (e) {
+      print('Error handling Dart code: $e');
+      // Handle error
+    }
+  }
+
+  void _deleteApp(int index) {
+    setState(() {
+      installedApps.removeAt(index);
+    });
+  }
+
+  void _openApp(String appName) {
+    switch (appName) {
+      case "Settings":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => SettingsScreen(
+            repositories: widget.repositories,
+            onRepositoriesChanged: (updatedRepositories) {
+              setState(() {
+                widget.repositories = updatedRepositories;
+              });
+            },
+            onSideloadApp: (dartCode) {
+              _handlePasteDartCode(dartCode);
+            },
+          )),
+        );
+        break;
+      case "App Store":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => AppStoreScreen(
+            repositories: widget.repositories,
+            onAddRepository: () {
+              // Handle adding repository
+            },
+          )),
+        );
+        break;
+      case "Chrome":
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BrowserScreen(
+              onDownloadWebsite: (name, iconUrl) {
+                AppInfo newApp = AppInfo(
+                  name: name,
+                  author: 'Anonymous',
+                  version: '1.0',
+                  icon: iconUrl,
+                );
+                setState(() {
+                  installedApps.add(newApp);
+                });
+              },
+            ),
+          ),
+        );
+        break;
+      default:
+        // Handle unknown app or no action
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,49 +181,77 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     width: 300,
                     height: MediaQuery.of(context).size.height,
                     color: Colors.black.withOpacity(0.7),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(height: 50),
-                        ListTile(
-                          leading: Icon(Icons.brightness_4, color: Colors.white),
-                          title: Text('Dark Mode'),
-                          trailing: Switch(
-                            value: false, // Replace with actual dark mode state
-                            onChanged: (value) {
-                              setState(() {
-                                // Toggle dark mode logic
-                              });
-                            },
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: 50),
+                          ListTile(
+                            leading: Icon(Icons.brightness_4, color: Colors.white),
+                            title: Text('Brightness'),
+                            trailing: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: 200, // Adjust maxWidth as needed
+                              ),
+                              child: Slider(
+                                value: _brightnessLevel,
+                                min: 0.0,
+                                max: 1.0,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _brightnessLevel = value;
+                                  });
+                                },
+                              ),
+                            ),
                           ),
-                        ),
-                        Divider(color: Colors.white),
-                        ListTile(
-                          leading: Icon(Icons.airplanemode_inactive, color: Colors.white),
-                          title: Text('Airplane Mode'),
-                        ),
-                        Divider(color: Colors.white),
-                        ListTile(
-                          leading: Icon(Icons.bluetooth, color: Colors.white),
-                          title: Text('Bluetooth'),
-                        ),
-                        Divider(color: Colors.white),
-                        ListTile(
-                          leading: Icon(Icons.wifi, color: Colors.white),
-                          title: Text('Wi-Fi'),
-                        ),
-                        // Add more controls here
-                      ],
+                          Divider(color: Colors.white),
+                          ListTile(
+                            leading: Icon(Icons.volume_up, color: Colors.white),
+                            title: Text('Volume'),
+                            trailing: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: 200, // Adjust maxWidth as needed
+                              ),
+                              child: Slider(
+                                value: _volumeLevel,
+                                min: 0.0,
+                                max: 1.0,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _volumeLevel = value;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          Divider(color: Colors.white),
+                          ListTile(
+                            leading: Icon(Icons.airplanemode_inactive, color: Colors.white),
+                            title: Text('Airplane Mode'),
+                          ),
+                          Divider(color: Colors.white),
+                          ListTile(
+                            leading: Icon(Icons.bluetooth, color: Colors.white),
+                            title: Text('Bluetooth'),
+                          ),
+                          Divider(color: Colors.white),
+                          ListTile(
+                            leading: Icon(Icons.wifi, color: Colors.white),
+                            title: Text('Wi-Fi'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               );
             },
           ),
+          // Home Screen Grid
           Padding(
-            padding: const EdgeInsets.only(top: 50.0),
+            padding: const EdgeInsets.only(top: 100.0, left: 10.0, right: 10.0),
             child: GridView.builder(
-              padding: EdgeInsets.symmetric(horizontal: 10.0),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 4,
                 crossAxisSpacing: 10.0,
@@ -124,39 +261,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               itemBuilder: (context, index) {
                 final app = installedApps[index];
                 return GestureDetector(
-                  onTap: () {
-                    if (app.name == "Settings") {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SettingsScreen(
-                            repositories: repositories,
-                            onRepositoriesChanged: (updatedRepos) {
-                              setState(() {
-                                repositories = updatedRepos;
-                              });
-                            },
-                          ),
-                        ),
-                      );
-                    } else if (app.name == "App Store") {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AppStoreScreen(
-                            repositories: repositories,
-                            onAddRepository: () {
-                              setState(() {
-                                // Handle adding repository
-                              });
-                            },
-                          ),
-                        ),
-                      );
-                    } else {
-                      // Handle opening other apps
-                    }
-                  },
+                  onTap: () => _openApp(app.name),
+                  onLongPress: () => _deleteApp(index),
                   child: Column(
                     children: [
                       Container(
