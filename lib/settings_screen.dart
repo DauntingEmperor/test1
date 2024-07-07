@@ -1,28 +1,109 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'models/app_info.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
   final List<String> repositories;
   final Function(List<String>) onRepositoriesChanged;
   final Function(String) onSideloadApp;
 
-  SettingsScreen({
-    required this.repositories,
-    required this.onRepositoriesChanged,
-    required this.onSideloadApp,
-  });
+  SettingsScreen({required this.repositories, required this.onRepositoriesChanged, required this.onSideloadApp});
 
   @override
   _SettingsScreenState createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  TextEditingController _repoController = TextEditingController();
-  TextEditingController _dartCodeController = TextEditingController();
+  String _selectedBackgroundImage = 'assets/backgrounds/default.png';
+  List<String> _repositories = [];
 
-  String _iosVersion = 'iOS 15.4.1';
-  String _appVersion = 'App Version 1.0';
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+    _repositories = widget.repositories;
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedBackgroundImage = prefs.getString('background_image') ?? 'assets/backgrounds/default.png';
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('background_image', _selectedBackgroundImage);
+    widget.onRepositoriesChanged(_repositories);
+  }
+
+  Future<void> _selectBackgroundImage() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+    );
+    if (result != null) {
+      setState(() {
+        _selectedBackgroundImage = result.files.single.path!;
+      });
+      await _saveSettings();
+    }
+  }
+
+  void _manageRepositories() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        TextEditingController _repoController = TextEditingController();
+        return AlertDialog(
+          title: Text('Manage Repositories'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _repoController,
+                decoration: InputDecoration(hintText: 'Add new repository URL'),
+              ),
+              SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _repositories.add(_repoController.text);
+                  });
+                  _repoController.clear();
+                  Navigator.of(context).pop();
+                  _saveSettings();
+                },
+                child: Text('Add'),
+              ),
+              ..._repositories.map((repo) => ListTile(
+                    title: Text(repo),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete),
+                      onPressed: () {
+                        setState(() {
+                          _repositories.remove(repo);
+                        });
+                        _saveSettings();
+                      },
+                    ),
+                  )),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _sideloadApp() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['dart'],
+    );
+    if (result != null) {
+      String dartCode = await File(result.files.single.path!).readAsString();
+      widget.onSideloadApp(dartCode);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,191 +112,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text('Settings'),
       ),
       body: ListView(
-        padding: EdgeInsets.all(16.0),
-        children: <Widget>[
+        children: [
           ListTile(
-            title: Text('Software Updates'),
-            leading: Icon(Icons.system_update),
+            title: Text('Change Background Image'),
+            trailing: Icon(Icons.image),
+            onTap: () async {
+              await _selectBackgroundImage();
+            },
+          ),
+          ListTile(
+            title: Text('Manage Repositories'),
+            trailing: Icon(Icons.folder),
             onTap: () {
-              // Handle software updates
+              _manageRepositories();
             },
           ),
-          Divider(),
           ListTile(
-            title: Text('About'),
-            leading: Icon(Icons.info),
+            title: Text('Sideload App'),
+            trailing: Icon(Icons.file_download),
             onTap: () {
-              _showAboutDialog();
+              _sideloadApp();
             },
-          ),
-          Divider(),
-          ListTile(
-            title: Text('Repositories'),
-            leading: Icon(Icons.storage),
-            trailing: IconButton(
-              icon: Icon(Icons.add),
-              onPressed: () {
-                _showAddRepositoryDialog();
-              },
-            ),
-          ),
-          Divider(),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            itemCount: widget.repositories.length,
-            itemBuilder: (context, index) {
-              return ListTile(
-                title: Text(widget.repositories[index]),
-                trailing: IconButton(
-                  icon: Icon(Icons.delete),
-                  onPressed: () {
-                    _removeRepository(index);
-                  },
-                ),
-              );
-            },
-          ),
-          Divider(),
-          ElevatedButton(
-            onPressed: () {
-              _showSideloadAppDialog();
-            },
-            child: Text('Sideload App'),
           ),
         ],
       ),
     );
-  }
-
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('About'),
-          content: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(_iosVersion),
-              SizedBox(height: 8),
-              Text(_appVersion),
-              SizedBox(height: 8),
-              Text('Copyright © 2024 Your Company'),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: Text('OK'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showAddRepositoryDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Add Repository'),
-          content: TextField(
-            controller: _repoController,
-            decoration: InputDecoration(hintText: 'Enter repository URL'),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('Add'),
-              onPressed: () {
-                _addRepository(_repoController.text);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _addRepository(String repoUrl) {
-    setState(() {
-      widget.repositories.add(repoUrl);
-      widget.onRepositoriesChanged(widget.repositories);
-    });
-  }
-
-  void _removeRepository(int index) {
-    setState(() {
-      widget.repositories.removeAt(index);
-      widget.onRepositoriesChanged(widget.repositories);
-    });
-  }
-
-  void _showSideloadAppDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Paste Dart Code'),
-          content: TextField(
-            controller: _dartCodeController,
-            onChanged: (value) {
-              // Store Dart code in controller
-            },
-            decoration: InputDecoration(hintText: 'Enter Dart code'),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('Paste'),
-              onPressed: () {
-                _handleSideloadApp(_dartCodeController.text);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _handleSideloadApp(String dartCode) {
-    if (dartCode.isNotEmpty) {
-      try {
-        Map<String, dynamic> appData = jsonDecode(dartCode);
-        AppInfo newApp = AppInfo(
-          name: appData['appName'] ?? 'Unnamed App',
-          author: 'Unknown Author',
-          version: '1.0',
-          icon: appData['appIconUrl'] ?? 'assets/icons/default.png',
-        );
-        widget.onSideloadApp(dartCode);
-      } catch (e) {
-        print('Error handling Dart code: $e');
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _repoController.dispose();
-    _dartCodeController.dispose();
-    super.dispose();
   }
 }
