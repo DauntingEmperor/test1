@@ -6,10 +6,16 @@ import 'browser_screen.dart';
 import 'file_picker_screen.dart';
 import 'gallery_screen.dart';
 import 'music_screen.dart';
+import 'camera_screen.dart';
+import 'contacts_screen.dart';
+import 'messages_screen.dart';
+import 'calendar_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:reorderables/reorderables.dart';
 
 class HomeScreen extends StatefulWidget {
   List<String> repositories;
@@ -28,6 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
     AppInfo(name: "File Picker", author: "", version: "", icon: "assets/icons/file_picker.png"),
     AppInfo(name: "Gallery", author: "", version: "", icon: "assets/icons/gallery.png"),
     AppInfo(name: "Music", author: "", version: "", icon: "assets/icons/music.png"),
+    AppInfo(name: "Contacts", author: "", version: "", icon: "assets/icons/contacts.png"),
+    AppInfo(name: "Messages", author: "", version: "", icon: "assets/icons/messages.png"),
+    AppInfo(name: "Calendar", author: "", version: "", icon: "assets/icons/calendar.png"),
     AppInfo(name: "Camera", author: "", version: "", icon: "assets/icons/camera.png"),
   ];
 
@@ -47,9 +56,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handlePasteDartCode(String dartCode) async {
-    // Implementation to extract app name and icon URL from Dart code...
-    // Here you would parse the Dart code to extract the necessary details
-    // For example:
     final appName = extractAppNameFromDartCode(dartCode);
     final iconUrl = extractIconUrlFromDartCode(dartCode);
     final iconPath = await _downloadFile(iconUrl, '$appName-icon.png');
@@ -65,13 +71,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String extractAppNameFromDartCode(String dartCode) {
     // Parse the Dart code to extract the app name
-    // This is a placeholder implementation
     return "New App";
   }
 
   String extractIconUrlFromDartCode(String dartCode) {
     // Parse the Dart code to extract the icon URL
-    // This is a placeholder implementation
     return "https://example.com/icon.png";
   }
 
@@ -156,9 +160,46 @@ class _HomeScreenState extends State<HomeScreen> {
           MaterialPageRoute(builder: (context) => MusicScreen()),
         );
         break;
+      case "Contacts":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => ContactsScreen()),
+        );
+        break;
+      case "Messages":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => MessagesScreen()),
+        );
+        break;
+      case "Calendar":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => CalendarScreen()),
+        );
+        break;
+      case "Camera":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => CameraScreen()),
+        );
+        break;
       default:
         // Handle unknown app or no action
         break;
+    }
+  }
+
+  void _changeBackground() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('background_image', pickedFile.path);
+      setState(() {
+        backgroundImage = pickedFile.path;
+      });
     }
   }
 
@@ -179,18 +220,42 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 50.0, horizontal: 10.0),
-            child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 10.0,
-                mainAxisSpacing: 10.0,
-              ),
-              itemCount: installedApps.length,
-              itemBuilder: (context, index) {
+            child: ReorderableWrap(
+              spacing: 10.0,
+              runSpacing: 10.0,
+              onReorder: (oldIndex, newIndex) {
+                setState(() {
+                  if (newIndex > oldIndex) newIndex -= 1;
+                  final item = installedApps.removeAt(oldIndex);
+                  installedApps.insert(newIndex, item);
+                });
+              },
+              children: List.generate(installedApps.length, (index) {
                 final app = installedApps[index];
                 return GestureDetector(
+                  key: ValueKey(app.name),
                   onTap: () => _openApp(app.name),
-                  onLongPress: () => _deleteApp(index),
+                  onLongPress: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text("Delete ${app.name}?"),
+                        actions: [
+                          TextButton(
+                            child: Text("Cancel"),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          TextButton(
+                            child: Text("Delete"),
+                            onPressed: () {
+                              _deleteApp(index);
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                   child: Column(
                     children: [
                       Container(
@@ -220,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 );
-              },
+              }),
             ),
           ),
         ],

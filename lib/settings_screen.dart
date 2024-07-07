@@ -1,139 +1,164 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:io';
 
 class SettingsScreen extends StatefulWidget {
   final List<String> repositories;
   final Function(List<String>) onRepositoriesChanged;
   final Function(String) onSideloadApp;
 
-  SettingsScreen({required this.repositories, required this.onRepositoriesChanged, required this.onSideloadApp});
+  SettingsScreen({
+    required this.repositories,
+    required this.onRepositoriesChanged,
+    required this.onSideloadApp,
+  });
 
   @override
   _SettingsScreenState createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _selectedBackgroundImage = 'assets/backgrounds/default.png';
-  List<String> _repositories = [];
+  TextEditingController _repositoryController = TextEditingController();
+  late TextEditingController _dartCodeController;
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
-    _repositories = widget.repositories;
+    _dartCodeController = TextEditingController();
   }
 
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+  @override
+  void dispose() {
+    _repositoryController.dispose();
+    _dartCodeController.dispose();
+    super.dispose();
+  }
+
+  void _addRepository() {
     setState(() {
-      _selectedBackgroundImage = prefs.getString('background_image') ?? 'assets/backgrounds/default.png';
+      widget.repositories.add(_repositoryController.text);
+      widget.onRepositoriesChanged(widget.repositories);
+      _repositoryController.clear();
     });
   }
 
-  Future<void> _saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('background_image', _selectedBackgroundImage);
-    widget.onRepositoriesChanged(_repositories);
+  void _removeRepository(int index) {
+    setState(() {
+      widget.repositories.removeAt(index);
+      widget.onRepositoriesChanged(widget.repositories);
+    });
   }
 
-  Future<void> _selectBackgroundImage() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-    );
-    if (result != null) {
-      setState(() {
-        _selectedBackgroundImage = result.files.single.path!;
-      });
-      await _saveSettings();
-    }
-  }
-
-  void _manageRepositories() {
-    showDialog(
+  Future<void> _sideloadApp() async {
+    String dartCode = await showDialog(
       context: context,
-      builder: (context) {
-        TextEditingController _repoController = TextEditingController();
-        return AlertDialog(
-          title: Text('Manage Repositories'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _repoController,
-                decoration: InputDecoration(hintText: 'Add new repository URL'),
-              ),
-              SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _repositories.add(_repoController.text);
-                  });
-                  _repoController.clear();
-                  Navigator.of(context).pop();
-                  _saveSettings();
-                },
-                child: Text('Add'),
-              ),
-              ..._repositories.map((repo) => ListTile(
-                    title: Text(repo),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete),
-                      onPressed: () {
-                        setState(() {
-                          _repositories.remove(repo);
-                        });
-                        _saveSettings();
-                      },
-                    ),
-                  )),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text("Sideload App"),
+        content: TextField(
+          controller: _dartCodeController,
+          maxLines: 10,
+          decoration: InputDecoration(hintText: "Paste Dart code here"),
+        ),
+        actions: [
+          TextButton(
+            child: Text("Cancel"),
+            onPressed: () => Navigator.of(context).pop(""),
           ),
-        );
-      },
+          TextButton(
+            child: Text("Sideload"),
+            onPressed: () {
+              Navigator.of(context).pop(_dartCodeController.text);
+            },
+          ),
+        ],
+      ),
     );
-  }
 
-  void _sideloadApp() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['dart'],
-    );
-    if (result != null) {
-      String dartCode = await File(result.files.single.path!).readAsString();
+    if (dartCode.isNotEmpty) {
       widget.onSideloadApp(dartCode);
     }
+  }
+
+  void _changeThemeMode(bool isDarkMode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', isDarkMode);
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Settings'),
-      ),
+      appBar: AppBar(title: Text("Settings")),
       body: ListView(
         children: [
           ListTile(
-            title: Text('Change Background Image'),
+            title: Text("Repositories"),
+            subtitle: Column(
+              children: [
+                ...widget.repositories.map((repo) {
+                  int index = widget.repositories.indexOf(repo);
+                  return ListTile(
+                    title: Text(repo),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete),
+                      onPressed: () => _removeRepository(index),
+                    ),
+                  );
+                }).toList(),
+                TextField(
+                  controller: _repositoryController,
+                  decoration: InputDecoration(
+                    labelText: "Add Repository",
+                    suffixIcon: IconButton(
+                      icon: Icon(Icons.add),
+                      onPressed: _addRepository,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SwitchListTile(
+            title: Text("Dark Mode"),
+            value: Theme.of(context).brightness == Brightness.dark,
+            onChanged: _changeThemeMode,
+          ),
+          ListTile(
+            title: Text("Sideload App"),
+            trailing: Icon(Icons.download),
+            onTap: _sideloadApp,
+          ),
+          ListTile(
+            title: Text("Change Background"),
             trailing: Icon(Icons.image),
-            onTap: () async {
-              await _selectBackgroundImage();
+            onTap: () {
+              // Implement background changing functionality
             },
           ),
           ListTile(
-            title: Text('Manage Repositories'),
-            trailing: Icon(Icons.folder),
+            title: Text("Wi-Fi"),
             onTap: () {
-              _manageRepositories();
+              // Implement Wi-Fi settings
             },
           ),
           ListTile(
-            title: Text('Sideload App'),
-            trailing: Icon(Icons.file_download),
+            title: Text("Bluetooth"),
             onTap: () {
-              _sideloadApp();
+              // Implement Bluetooth settings
+            },
+          ),
+          ListTile(
+            title: Text("Sound"),
+            onTap: () {
+              // Implement Sound settings
+            },
+          ),
+          ListTile(
+            title: Text("Notifications"),
+            onTap: () {
+              // Implement Notifications settings
             },
           ),
         ],
