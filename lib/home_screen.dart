@@ -3,11 +3,13 @@ import 'models/app_info.dart';
 import 'settings_screen.dart';
 import 'app_store_screen.dart';
 import 'browser_screen.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'file_picker_screen.dart';
+import 'gallery_screen.dart';
+import 'music_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:io';
 
 class HomeScreen extends StatefulWidget {
   List<String> repositories;
@@ -23,6 +25,10 @@ class _HomeScreenState extends State<HomeScreen> {
     AppInfo(name: "Settings", author: "", version: "", icon: "assets/icons/settings.png"),
     AppInfo(name: "App Store", author: "", version: "", icon: "assets/icons/app_store.png"),
     AppInfo(name: "Chrome", author: "", version: "", icon: "assets/icons/chrome.png"),
+    AppInfo(name: "File Picker", author: "", version: "", icon: "assets/icons/file_picker.png"),
+    AppInfo(name: "Gallery", author: "", version: "", icon: "assets/icons/gallery.png"),
+    AppInfo(name: "Music", author: "", version: "", icon: "assets/icons/music.png"),
+    AppInfo(name: "Camera", author: "", version: "", icon: "assets/icons/camera.png"),
   ];
 
   String backgroundImage = 'assets/backgrounds/default.png';
@@ -42,6 +48,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _handlePasteDartCode(String dartCode) async {
     // Implementation to extract app name and icon URL from Dart code...
+    // Here you would parse the Dart code to extract the necessary details
+    // For example:
+    final appName = extractAppNameFromDartCode(dartCode);
+    final iconUrl = extractIconUrlFromDartCode(dartCode);
+    final iconPath = await _downloadFile(iconUrl, '$appName-icon.png');
+    setState(() {
+      installedApps.add(AppInfo(
+        name: appName,
+        author: 'Anonymous',
+        version: '1.0',
+        icon: iconPath,
+      ));
+    });
+  }
+
+  String extractAppNameFromDartCode(String dartCode) {
+    // Parse the Dart code to extract the app name
+    // This is a placeholder implementation
+    return "New App";
+  }
+
+  String extractIconUrlFromDartCode(String dartCode) {
+    // Parse the Dart code to extract the icon URL
+    // This is a placeholder implementation
+    return "https://example.com/icon.png";
   }
 
   void _deleteApp(int index) {
@@ -107,6 +138,24 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
         break;
+      case "File Picker":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => FilePickerScreen()),
+        );
+        break;
+      case "Gallery":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => GalleryScreen()),
+        );
+        break;
+      case "Music":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => MusicScreen()),
+        );
+        break;
       default:
         // Handle unknown app or no action
         break;
@@ -121,7 +170,9 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             decoration: BoxDecoration(
               image: DecorationImage(
-                image: FileImage(File(backgroundImage)),
+                image: backgroundImage.startsWith('assets/')
+                    ? AssetImage(backgroundImage)
+                    : FileImage(File(backgroundImage)) as ImageProvider,
                 fit: BoxFit.cover,
               ),
             ),
