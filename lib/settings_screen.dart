@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends StatelessWidget {
   final List<String> repositories;
   final Function(List<String>) onRepositoriesChanged;
   final Function(String) onSideloadApp;
@@ -16,152 +13,127 @@ class SettingsScreen extends StatefulWidget {
   });
 
   @override
-  _SettingsScreenState createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  TextEditingController _repositoryController = TextEditingController();
-  late TextEditingController _dartCodeController;
-
-  @override
-  void initState() {
-    super.initState();
-    _dartCodeController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _repositoryController.dispose();
-    _dartCodeController.dispose();
-    super.dispose();
-  }
-
-  void _addRepository() {
-    setState(() {
-      widget.repositories.add(_repositoryController.text);
-      widget.onRepositoriesChanged(widget.repositories);
-      _repositoryController.clear();
-    });
-  }
-
-  void _removeRepository(int index) {
-    setState(() {
-      widget.repositories.removeAt(index);
-      widget.onRepositoriesChanged(widget.repositories);
-    });
-  }
-
-  Future<void> _sideloadApp() async {
-    String dartCode = await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Sideload App"),
-        content: TextField(
-          controller: _dartCodeController,
-          maxLines: 10,
-          decoration: InputDecoration(hintText: "Paste Dart code here"),
-        ),
-        actions: [
-          TextButton(
-            child: Text("Cancel"),
-            onPressed: () => Navigator.of(context).pop(""),
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Settings'),
+        backgroundColor: Colors.black,
+      ),
+      body: ListView(
+        padding: EdgeInsets.all(10.0),
+        children: [
+          _buildSectionHeader("Connections"),
+          _buildSettingsTile(
+            context,
+            icon: Icons.wifi,
+            title: "Wi-Fi",
+            onTap: () {},
           ),
-          TextButton(
-            child: Text("Sideload"),
-            onPressed: () {
-              Navigator.of(context).pop(_dartCodeController.text);
+          _buildSettingsTile(
+            context,
+            icon: Icons.bluetooth,
+            title: "Bluetooth",
+            onTap: () {},
+          ),
+          _buildSettingsTile(
+            context,
+            icon: Icons.network_cell,
+            title: "Mobile networks",
+            onTap: () {},
+          ),
+          SizedBox(height: 20),
+          _buildSectionHeader("Personalization"),
+          _buildSettingsTile(
+            context,
+            icon: Icons.wallpaper,
+            title: "Wallpaper",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChangeBackgroundScreen(onBackgroundChanged: (String imagePath) {
+                    onSideloadApp(imagePath);
+                  }),
+                ),
+              );
             },
+          ),
+          _buildSettingsTile(
+            context,
+            icon: Icons.color_lens,
+            title: "Themes",
+            onTap: () {},
+          ),
+          SizedBox(height: 20),
+          _buildSectionHeader("General"),
+          _buildSettingsTile(
+            context,
+            icon: Icons.info,
+            title: "About phone",
+            onTap: () {},
+          ),
+          _buildSettingsTile(
+            context,
+            icon: Icons.system_update,
+            title: "Software update",
+            onTap: () {},
           ),
         ],
       ),
     );
-
-    if (dartCode.isNotEmpty) {
-      widget.onSideloadApp(dartCode);
-    }
   }
 
-  void _changeThemeMode(bool isDarkMode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isDarkMode);
-    setState(() {});
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
   }
+
+  Widget _buildSettingsTile(BuildContext context, {required IconData icon, required String title, required Function() onTap}) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class ChangeBackgroundScreen extends StatelessWidget {
+  final Function(String) onBackgroundChanged;
+
+  ChangeBackgroundScreen({required this.onBackgroundChanged});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Settings")),
-      body: ListView(
-        children: [
-          ListTile(
-            title: Text("Repositories"),
-            subtitle: Column(
-              children: [
-                ...widget.repositories.map((repo) {
-                  int index = widget.repositories.indexOf(repo);
-                  return ListTile(
-                    title: Text(repo),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete),
-                      onPressed: () => _removeRepository(index),
-                    ),
-                  );
-                }).toList(),
-                TextField(
-                  controller: _repositoryController,
-                  decoration: InputDecoration(
-                    labelText: "Add Repository",
-                    suffixIcon: IconButton(
-                      icon: Icon(Icons.add),
-                      onPressed: _addRepository,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SwitchListTile(
-            title: Text("Dark Mode"),
-            value: Theme.of(context).brightness == Brightness.dark,
-            onChanged: _changeThemeMode,
-          ),
-          ListTile(
-            title: Text("Sideload App"),
-            trailing: Icon(Icons.download),
-            onTap: _sideloadApp,
-          ),
-          ListTile(
-            title: Text("Change Background"),
-            trailing: Icon(Icons.image),
-            onTap: () {
-              // Implement background changing functionality
-            },
-          ),
-          ListTile(
-            title: Text("Wi-Fi"),
-            onTap: () {
-              // Implement Wi-Fi settings
-            },
-          ),
-          ListTile(
-            title: Text("Bluetooth"),
-            onTap: () {
-              // Implement Bluetooth settings
-            },
-          ),
-          ListTile(
-            title: Text("Sound"),
-            onTap: () {
-              // Implement Sound settings
-            },
-          ),
-          ListTile(
-            title: Text("Notifications"),
-            onTap: () {
-              // Implement Notifications settings
-            },
-          ),
-        ],
+      appBar: AppBar(
+        title: Text('Change Background'),
+        backgroundColor: Colors.black,
+      ),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () async {
+            final picker = ImagePicker();
+            final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+            if (pickedFile != null) {
+              onBackgroundChanged(pickedFile.path);
+              Navigator.pop(context);
+            }
+          },
+          child: Text('Pick an image'),
+        ),
       ),
     );
   }

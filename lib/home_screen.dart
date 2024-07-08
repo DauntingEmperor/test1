@@ -185,12 +185,21 @@ class _HomeScreenState extends State<HomeScreen> {
         );
         break;
       default:
-        // Handle unknown app or no action
-        break;
+        print("App not found");
     }
   }
 
-  void _changeBackground() async {
+  void _onReorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final item = installedApps.removeAt(oldIndex);
+      installedApps.insert(newIndex, item);
+    });
+  }
+
+  Future<void> _changeBackground() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
@@ -206,89 +215,49 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: backgroundImage.startsWith('assets/')
-                    ? AssetImage(backgroundImage)
-                    : FileImage(File(backgroundImage)) as ImageProvider,
-                fit: BoxFit.cover,
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: FileImage(File(backgroundImage)),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, // Center items vertically
+          children: [
+            Expanded(
+              child: ReorderableWrap(
+                padding: EdgeInsets.all(10),
+                spacing: 10,
+                runSpacing: 10,
+                onReorder: _onReorder,
+                children: installedApps.map((app) {
+                  return GestureDetector(
+                    key: ValueKey(app),
+                    onTap: () => _openApp(app.name),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 40,
+                          backgroundImage: AssetImage(app.icon),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          app.name,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 50.0, horizontal: 10.0),
-            child: ReorderableWrap(
-              spacing: 10.0,
-              runSpacing: 10.0,
-              onReorder: (oldIndex, newIndex) {
-                setState(() {
-                  if (newIndex > oldIndex) newIndex -= 1;
-                  final item = installedApps.removeAt(oldIndex);
-                  installedApps.insert(newIndex, item);
-                });
-              },
-              children: List.generate(installedApps.length, (index) {
-                final app = installedApps[index];
-                return GestureDetector(
-                  key: ValueKey(app.name),
-                  onTap: () => _openApp(app.name),
-                  onLongPress: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text("Delete ${app.name}?"),
-                        actions: [
-                          TextButton(
-                            child: Text("Cancel"),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                          TextButton(
-                            child: Text("Delete"),
-                            onPressed: () {
-                              _deleteApp(index);
-                              Navigator.of(context).pop();
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(15.0),
-                          image: DecorationImage(
-                            image: app.icon.startsWith('assets/')
-                                ? AssetImage(app.icon)
-                                : FileImage(File(app.icon)) as ImageProvider,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        app.name,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
